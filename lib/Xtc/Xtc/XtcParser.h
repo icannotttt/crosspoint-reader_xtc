@@ -18,6 +18,7 @@
 
 namespace xtc {
 
+
 /**
  * XTC File Parser
  *
@@ -28,6 +29,10 @@ class XtcParser {
  public:
   XtcParser();
   ~XtcParser();
+  #define MAX_SAVE_CHAPTER  30    // 最多存30章
+  #define TITLE_KEEP_LENGTH 20    // 标题截取前20个UTF8字符
+  #define TITLE_BUF_SIZE    64    // 标题缓冲区64字节，完美匹配你的static char title[64]
+
 
   // File open/close
   XtcError open(const char* filepath);
@@ -40,6 +45,52 @@ class XtcParser {
   uint16_t getWidth() const { return m_defaultWidth; }
   uint16_t getHeight() const { return m_defaultHeight; }
   uint8_t getBitDepth() const { return m_bitDepth; }  // 1 = XTC/XTG, 2 = XTCH/XTH
+
+ 
+
+
+
+/**
+ * @brief 【核心对外接口】动态加载下一批页码 (默认每次加载10页)
+ * @return XtcError 加载状态：OK=加载成功，PAGE_OUT_OF_RANGE=无更多页可加载，其他=加载失败
+ */
+XtcError loadNextPageBatch();
+
+/**
+ * @brief 【辅助接口】获取当前已经加载的最大页码 (比如加载了0~9页，返回9；加载了0~19页，返回19)
+ * @return uint16_t 当前加载的最大有效页码
+ */
+uint16_t getLoadedMaxPage() const;
+
+/**
+ * @brief 【辅助接口】获取每次动态加载的页数（批次大小）
+ * @return uint16_t 批次页数，默认10
+ */
+uint16_t getPageBatchSize() const;
+
+uint32_t getChapterstartpage(int chapterIndex) {
+    for(int i = 0; i < 25; i++) {
+        if(ChapterList[i].chapterIndex == chapterIndex) {
+            return ChapterList[i].startPage;
+        }
+    }
+    return 0; // 无此章节返回0
+}
+
+   
+std::string getChapterTitleByIndex(int chapterIndex) {
+    Serial.printf("[%lu] [XTC] 已进入getChapterTitleByIndex，chapterActualCount=%d\n", millis(),chapterActualCount);
+    for(int i = 0; i < 25; i++) {
+        if(ChapterList[i].chapterIndex == chapterIndex) {
+            return std::string(ChapterList[i].shortTitle);
+            Serial.printf("[%lu] [XTC] getChapterTitleByIndex里第%d章，名字为:%s %u\n", millis(), i, ChapterList[i].shortTitle);
+        }
+    }
+    return ""; // 无此章节返回空字符串
+}
+
+
+
 
   // Page information
   bool getPageInfo(uint32_t pageIndex, PageInfo& info) const;
@@ -79,6 +130,12 @@ class XtcParser {
   // Error information
   XtcError getLastError() const { return m_lastError; }
 
+  // new
+
+  XtcError readChapters_gd(uint16_t chapterStart);
+ ChapterData ChapterList[MAX_SAVE_CHAPTER];
+  int chapterActualCount = 0;
+
  private:
   FsFile m_file;
   bool m_isOpen;
@@ -90,6 +147,8 @@ class XtcParser {
   uint16_t m_defaultHeight;
   uint8_t m_bitDepth;  // 1 = XTC/XTG (1-bit), 2 = XTCH/XTH (2-bit)
   bool m_hasChapters;
+  uint16_t m_loadedStartPage = 0;
+
   XtcError m_lastError;
 
   // Internal helper functions
@@ -97,6 +156,9 @@ class XtcParser {
   XtcError readPageTable();
   XtcError readTitle();
   XtcError readChapters();
+
+  uint16_t m_loadBatchSize = 10;    // 每次加载的页数（核心配置，可改）
+  uint16_t m_loadedMaxPage = 0;     // 记录当前加载到的最大页码
 };
 
 }  // namespace xtc
