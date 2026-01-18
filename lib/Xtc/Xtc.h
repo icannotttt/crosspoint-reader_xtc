@@ -71,6 +71,41 @@ class Xtc {
   uint16_t getPageWidth() const;
   uint16_t getPageHeight() const;
   uint8_t getBitDepth() const;  // 1 = XTC (1-bit), 2 = XTCH (2-bit)
+  
+  /**
+   * 动态加载下一批页码（内部调用 XtcParser 的 loadNextPageBatch）
+   */
+  xtc::XtcError loadNextPageBatch() const {
+      return parser ? parser->loadNextPageBatch() : xtc::XtcError::FILE_NOT_FOUND;
+  }
+
+  /**
+   * 获取当前已加载的最大页码
+   */
+  uint16_t getLoadedMaxPage() const {
+      return parser ? parser->getLoadedMaxPage() : 0;
+  }
+
+  /**
+   * 获取每次加载的批次页数（默认10）
+   */
+  uint16_t getPageBatchSize() const {
+      return parser ? parser->getPageBatchSize() : 10;
+  }
+  xtc::XtcError readChapters_gd(uint16_t chapterStart) const {
+      return parser ? parser->readChapters_gd(chapterStart) : xtc::XtcError::FILE_NOT_FOUND;
+  }
+uint32_t getChapterstartpage(int chapterIndex) {
+  return parser ? parser->getChapterstartpage(chapterIndex) : 0;
+}
+std::string getChapterTitleByIndex(int chapterIndex) {
+    return parser ? parser->getChapterTitleByIndex(chapterIndex) : "";
+}
+
+
+  
+  // ======================================================================
+
 
   /**
    * Load page bitmap data
