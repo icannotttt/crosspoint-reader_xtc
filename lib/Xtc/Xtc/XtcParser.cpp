@@ -22,9 +22,9 @@ XtcParser::XtcParser()
       m_bitDepth(1),
       m_hasChapters(false),
       m_lastError(XtcError::OK),
-      m_loadBatchSize(2000),  // ✅ 修改：批次大小改为2000（你的要求）
+      m_loadBatchSize(2000),  // ✅load 2000 pages
       m_loadedMaxPage(0),
-      m_loadedStartPage(0) {  // ✅ 新增：只加这1个变量，记录当前页表的起始页
+      m_loadedStartPage(0) {  // ✅ read_table_begin
   memset(&m_header, 0, sizeof(m_header));
 }
 
@@ -137,10 +137,10 @@ XtcError XtcParser::readTitle() {
   return XtcError::OK;
 }
 
-// ========== 初始化加载【第一批10页】的页表 (原逻辑修改，适配动态加载) ==========
+
 XtcError XtcParser::readPageTable() {
-  m_pageTable.clear();          // ✅ 新增：加载前清空旧表
-  m_pageTable.shrink_to_fit();  // ✅ 新增：彻底释放内存
+  m_pageTable.clear();          
+  m_pageTable.shrink_to_fit();  
   if (m_header.pageTableOffset == 0) {
     Serial.printf("[%lu] [XTC] Page table offset is 0, cannot read\n", millis());
     return XtcError::CORRUPTED_HEADER;
@@ -151,13 +151,13 @@ XtcError XtcParser::readPageTable() {
     return XtcError::READ_ERROR;
   }
 
-  // 初始加载：从第0页开始，加载第一批10页
+ 
   uint16_t startPage = 0;
   uint16_t endPage = startPage + m_loadBatchSize - 1;
   if(endPage >= m_header.pageCount) endPage = m_header.pageCount - 1;
   uint16_t loadCount = endPage - startPage + 1;
 
-  m_pageTable.resize(endPage + 1); // 扩容vector，保留已加载数据
+  m_pageTable.resize(endPage + 1);
 
   for (uint16_t i = startPage; i <= endPage; i++) {
     PageTableEntry entry;
@@ -179,12 +179,12 @@ XtcError XtcParser::readPageTable() {
     }
   }
 
-  m_loadedMaxPage = endPage; // 更新已加载的最大页码
+  m_loadedMaxPage = endPage;
   Serial.printf("[%lu] [XTC] 初始化加载页表: 成功加载 [0~%u] 共%u页\n", millis(), m_loadedMaxPage, loadCount);
   return XtcError::OK;
 }
 
-// ========== 原逻辑不变：保留完整函数+空循环+单章节 ==========
+
 XtcError XtcParser::readChapters() {
   m_hasChapters = false;
   m_chapters.clear();
@@ -223,7 +223,7 @@ XtcError XtcParser::readChapters() {
     if (m_file.read(chapterBuf.data(), chapterSize) != chapterSize) {return XtcError::READ_ERROR;}
   }
 
-  // 单章节：名称=书名/全书，页码=0~总页数-1 (逻辑上包含全书，不影响阅读)
+ 
   std::string chapterName = m_title.empty() ? "全书" : m_title;
   ChapterInfo singleChapter{std::move(chapterName), 0, m_header.pageCount - 1};
   m_chapters.push_back(std::move(singleChapter));
@@ -234,7 +234,7 @@ XtcError XtcParser::readChapters() {
   return XtcError::OK;
 }
 
-// ========== ✨ 核心新增：动态加载的内部核心逻辑 ==========
+// new
 XtcError XtcParser::loadNextPageBatch() {
   if(!m_isOpen) {
     m_lastError = XtcError::FILE_NOT_FOUND;
@@ -246,18 +246,18 @@ XtcError XtcParser::loadNextPageBatch() {
     return m_lastError;
   }
 
-  // ✅✅✅ 核心修改1：清空旧页表 + 彻底释放内存 (内存占用归零，关键！)
+  // ✅clear
   m_pageTable.clear();
   m_pageTable.shrink_to_fit();
 
-  // ✅✅✅ 核心修改2：按批次规则计算起始页 = 当前最大页+1 对齐2000的整数倍
+  // ✅calculate begin page
   uint16_t startPage = m_loadedMaxPage + 1;
   m_loadedStartPage = (startPage / 2000) * 2000; // 你的规则：整除2000再乘2000
   uint16_t endPage = m_loadedStartPage + m_loadBatchSize - 1;
   if(endPage >= m_header.pageCount) endPage = m_header.pageCount - 1;
   uint16_t loadCount = endPage - m_loadedStartPage + 1;
 
-  // ✅✅✅ 定位到新批次的页表位置
+  // ✅find readtable
   uint64_t seekOffset = m_header.pageTableOffset + (m_loadedStartPage * sizeof(PageTableEntry));
   if(!m_file.seek(seekOffset)) {
     Serial.printf("[%lu] [XTC] 动态加载：移动指针失败，偏移量=%llu\n", millis(), seekOffset);
@@ -265,7 +265,7 @@ XtcError XtcParser::loadNextPageBatch() {
     return m_lastError;
   }
 
-  // ✅✅✅ 重新加载新批次数据，内存只存2000页
+  // ✅load 2000 pages
   m_pageTable.resize(endPage - m_loadedStartPage + 1);
   for(uint16_t i = m_loadedStartPage; i <= endPage; i++) {
     PageTableEntry entry;
@@ -291,30 +291,30 @@ XtcError XtcParser::loadNextPageBatch() {
 }
 
 
-// ========== ✨ 对外接口1：获取当前加载的最大页码 ==========
+//new
 uint16_t XtcParser::getLoadedMaxPage() const {
   return m_loadedMaxPage;
 }
 
-// ========== ✨ 对外接口2：获取每次加载的批次页数 ==========
+//new
 uint16_t XtcParser::getPageBatchSize() const {
   return m_loadBatchSize;
 }
 
-// ========== 原函数不变，自动兼容动态加载的数据 ==========
+// new
 bool XtcParser::getPageInfo(uint32_t pageIndex, PageInfo& info) const {
   // pageIndex 就是 currentPage，你的核心判断逻辑
   if (pageIndex >= m_header.pageCount) return false;
 
-  // ✅✅✅ 你的规则：计算当前页应该在哪个2000页批次里
+
   uint16_t targetStart = (pageIndex / 2000) * 2000;
-  // ✅✅✅ 判断：如果当前页不在已加载的批次区间内 → 触发加载新批次
+  
   if (pageIndex < m_loadedStartPage || pageIndex > m_loadedMaxPage) {
     auto* self = const_cast<XtcParser*>(this);
-    self->loadNextPageBatch(); // 调用上面改好的加载函数，自动清空旧表+加载新表
+    self->loadNextPageBatch();
   }
 
-  // ✅✅✅ 返回当前页的信息
+  // 
   uint16_t idx = pageIndex - m_loadedStartPage;
   if(idx >= m_pageTable.size()) return false;
   info = m_pageTable[idx];
@@ -323,17 +323,17 @@ bool XtcParser::getPageInfo(uint32_t pageIndex, PageInfo& info) const {
 
 
 size_t XtcParser::loadPage(uint32_t pageIndex, uint8_t* buffer, size_t bufferSize) {
-  if (!m_isOpen || pageIndex >= m_header.pageCount) { // ✅ 删除 pageIndex > m_loadedMaxPage
+  if (!m_isOpen || pageIndex >= m_header.pageCount) { 
     m_lastError = (pageIndex >= m_header.pageCount) ? XtcError::PAGE_OUT_OF_RANGE : XtcError::FILE_NOT_FOUND;
     return 0;
   }
-  // ✅ 自动判断是否需要加载新批次
+  // 
   if (pageIndex < m_loadedStartPage || pageIndex > m_loadedMaxPage) {
     loadNextPageBatch();
   }
-  // ✅ 计算当前页在页表中的索引
+  // 
   uint16_t idx = pageIndex - m_loadedStartPage;
-  const PageInfo& page = m_pageTable[idx]; // ✅ 替换原 m_pageTable[pageIndex]
+  const PageInfo& page = m_pageTable[idx]; // ✅ charge m_pageTable[pageIndex]
   if (!m_file.seek(page.offset)) {
     Serial.printf("[%lu] [XTC] Failed to seek to page %u at offset %lu\n", millis(), pageIndex, page.offset);
     m_lastError = XtcError::READ_ERROR;
@@ -423,7 +423,7 @@ bool XtcParser::isValidXtcFile(const char* filepath) {
   return (bytesRead == sizeof(magic)) && (magic == XTC_MAGIC || magic == XTCH_MAGIC);
 }
 
-// ========== ✨ 新增底层实现：获取电子书总章节数 ==========
+//new chapters
 XtcError XtcParser::readChapters_gd(uint16_t chapterStart) {
     chapterActualCount = 0;
     memset(ChapterList, 0, sizeof(ChapterList));
@@ -442,7 +442,7 @@ XtcError XtcParser::readChapters_gd(uint16_t chapterStart) {
   }
       Serial.printf("[%lu] [XTC] 位置1");
 
-  // ===== 2. 读取章节区起始偏移：和原版完全一致 =====
+ 
   uint64_t chapterOffset = 0;
   if (!m_file.seek(0x30)) {
     return XtcError::READ_ERROR;
@@ -455,7 +455,7 @@ XtcError XtcParser::readChapters_gd(uint16_t chapterStart) {
   }
       Serial.printf("[%lu] [XTC] 位置2");
 
-  // ===== 3. 计算文件边界和总章节数：和原版完全一致 =====
+ 
   const uint64_t fileSize = m_file.size();
   if (chapterOffset < sizeof(XtcHeader) || chapterOffset >= fileSize || chapterOffset + 96 > fileSize) {
     return XtcError::OK;
@@ -478,20 +478,19 @@ XtcError XtcParser::readChapters_gd(uint16_t chapterStart) {
     return XtcError::OK;
   }
     Serial.printf("[%lu] [XTC] 位置3");
-  // ===== 4. 核心翻页逻辑：定位到【起始章节】的位置 ✅✅✅ 原版逻辑复刻 =====
-  // 计算起始章节的偏移：章节区开头 + 起始章节索引 * 单章96字节
+
   uint64_t startReadOffset = chapterOffset + (chapterStart * chapterSize);
   if (!m_file.seek(startReadOffset)) { // 跳到要读取的起始章节位置
     return XtcError::READ_ERROR;
   }
     Serial.printf("[%lu] [XTC] 位置4");
 
-  // ===== 5. 读取25章数据：和原版循环完全一致，依赖FsFile的自动步进 ✅✅✅ =====
+
   std::vector<uint8_t> chapterBuf(chapterSize);
   int readCount = 0; // 已读取的章节数，最多读25章
-  size_t currentChapterIdx = chapterStart; // 当前读到的章节索引
+  size_t currentChapterIdx = chapterStart; 
 
-  // 循环条件：最多读25章 + 不超过总章节数
+
   Serial.printf("[%lu] [XTC] readCount:%d,currentChapterIdx:%d, chapterCount %u\n", millis(), readCount, currentChapterIdx,chapterCount);
   while (readCount < 25 && currentChapterIdx < chapterCount) {
     if (m_file.read(chapterBuf.data(), chapterSize) != chapterSize) {
@@ -539,7 +538,7 @@ XtcError XtcParser::readChapters_gd(uint16_t chapterStart) {
     Serial.printf("[%lu] [XTC] 第%d章，名字为:%s %u\n", millis(), readCount, ChapterList[readCount].shortTitle);
     readCount++;        // 数组索引+1
     currentChapterIdx++; // 章节索引+1
-    // ✅ 无需任何手动seek！FsFile的read()自动把指针后移96字节，完美指向下一章
+   
   }
 
   m_hasChapters = readCount > 0;
