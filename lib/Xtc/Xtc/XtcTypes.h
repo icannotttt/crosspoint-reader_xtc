@@ -102,6 +102,12 @@ struct ChapterInfo {
   uint16_t endPage;
 };
 
+struct ChapterData {
+    int chapterIndex;        // 章节序号
+    uint16_t startPage;     // 字节偏移量
+    char shortTitle[64]; // 截取后的标题，char数组格式
+};
+
 // Error codes
 enum class XtcError {
   OK = 0,

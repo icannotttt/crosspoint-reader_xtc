@@ -29,6 +29,11 @@ class XtcParser {
   XtcParser();
   ~XtcParser();
 
+#define MAX_SAVE_CHAPTER  30   
+  #define TITLE_KEEP_LENGTH 20    
+  #define TITLE_BUF_SIZE    64    
+
+
   // File open/close
   XtcError open(const char* filepath);
   void close();
@@ -139,6 +144,7 @@ std::string getChapterTitleByIndex(int chapterIndex) {
   uint8_t m_bitDepth;  // 1 = XTC/XTG (1-bit), 2 = XTCH/XTH (2-bit)
   bool m_hasChapters;
   XtcError m_lastError;
+  uint16_t m_loadedStartPage = 0;
 
   // Internal helper functions
   XtcError readHeader();

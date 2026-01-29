@@ -121,16 +121,13 @@ XtcError XtcParser::readHeader() {
 }
 
 XtcError XtcParser::readTitle() {
-  if (m_header.titleOffset == 0) {
-    m_header.titleOffset = 0x38;
-  }
-
-  if (!m_file.seek(m_header.titleOffset)) {
+  constexpr auto titleOffset = 0x38;
+  if (!m_file.seek(titleOffset)) {
     return XtcError::READ_ERROR;
   }
 
   char titleBuf[128] = {0};
-  m_file.read(reinterpret_cast<uint8_t*>(&titleBuf), sizeof(titleBuf) - 1);
+  m_file.read(titleBuf, sizeof(titleBuf) - 1);
   m_title = titleBuf;
 
   Serial.printf("[%lu] [XTC] Title: %s\n", millis(), m_title.c_str());
