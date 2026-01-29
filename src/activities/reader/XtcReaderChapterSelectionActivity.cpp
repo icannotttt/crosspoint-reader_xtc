@@ -12,7 +12,7 @@ int page = 1;
 }  // namespace
 
 int XtcReaderChapterSelectionActivity::getPageItems() const {
-  return 25; // 固定返回25
+  return 25; // 25 for one page
 }
 
 void XtcReaderChapterSelectionActivity::taskTrampoline(void* param) {
@@ -56,11 +56,12 @@ void XtcReaderChapterSelectionActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     const int pagebegin=(page-1)*25;
     xtc->readChapters_gd(pagebegin);
+    //to get the page for the select chapter
     uint32_t chapterpage = this->xtc->getChapterstartpage(selectorIndex);
     Serial.printf("[%lu] [XTC] 跳转章节：%d,跳转页数：%d\n", millis(), selectorIndex, chapterpage);
     
     onSelectPage(chapterpage);
-    // 确认按键逻辑，按需补充
+    
   } else if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     onGoBack();
   } else if (prevReleased) {
